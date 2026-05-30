@@ -6366,7 +6366,7 @@ function _fbInit() {
             _fbSetStatus('#f5a623', '🟡 Reconnecting...', 'Reconnecting...');
           }
           console.log('SIS ERP: Firebase DISCONNECTED');
-        }, 4000);
+        }, 10000); // v79: increased from 4s → 10s, long-polling needs more time
       }
     });
   } catch(e) {
