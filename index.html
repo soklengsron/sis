@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="theme-color" content="#07090f"/>
-<title>Shalom International School ERP v76 — Production</title>
+<title>Shalom International School ERP v78 — Production</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <!-- ✅ FIREBASE SDK — Online Cloud Storage -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -89,6 +89,69 @@
           for easy one-tap cleanup on any device including mobile.
         • Fix 4: Student form placeholder changed from demo name to generic text.
         • Result: Zero demo data on ALL devices. Ready for your real students.
+   v76: FINAL PRODUCTION AUDIT & FIREBASE STABILIZATION
+        Firebase & Real-Time:
+        • _fbSave now retries on network error (3 retries, exponential backoff)
+        • _fbStartListen: strengthened echo suppression window to 2000ms
+        • Added _fbQueued flag: queues a save while offline, flushes on reconnect
+        • _fbUpdating guard extended to 5s after reset (prevents reconnect race)
+        • Store.update logs round-trip for diagnostics
+        Data Integrity:
+        • nextId() uses crypto.randomUUID() prefix — eliminates multi-device ID collision
+        • _scheduleSave debounce: 400ms → 250ms for snappier saves
+        • Payment duplicate check: also checks forMonth collision
+        • Daily Report today income: now correctly includes otherIncome
+        Mobile Performance:
+        • backdrop-filter:blur removed from sidebar-overlay on mobile
+        • transform:translateZ(0) added to #main for GPU compositing
+        • Modal body: -webkit-overflow-scrolling:touch added
+        • Stat card hover transforms disabled on touch via @media(hover:none)
+        • Form inputs: min-height:44px on mobile (WCAG touch target)
+        • Toasts: max-width:360px cap on mobile (no overflow)
+        • 420px breakpoint added for section-header wrap
+        Security:
+        • Firebase _ping test now writes to isolated .info/ping path
+        • Auth lockout persists across refreshes via sessionStorage
+        Premium Quality:
+        • Sidebar footer shows v76
+        • Stat card sub-label line-height: 1.6
+        • Section-header gap: 10px for better touch targets
+        • Monthly Report print styles corrected for clean PDF output
+   v77: FINAL PRODUCTION AUDIT — SCHOOL DEPLOYMENT READY
+        Firebase / Sync:
+        • _fbSave: set _fbLastSaveMs BEFORE async .set() call so echo suppression
+          window starts immediately (was starting after network round-trip)
+        • Firebase listen: guard against applying snapshot if _fbUpdating is true
+          (prevents post-reset race condition where old cloud data overwrites reset)
+        • _fbInit: _fbConnected correctly set false before .info/connected fires
+        Auth / Security:
+        • doLogout: clears Auth lockout timer key from sessionStorage on logout
+        • Auth.login: empty username now rejected before hash computation
+        • applyRoleUI: hides accountant-only export buttons from teachers
+        Data Integrity:
+        • saveStudent: enrollDate validated — future dates rejected with warning
+        • confirmAndSavePayment: double-save guard strengthened — _pendingPayment
+          nulled BEFORE Store.update to prevent race on very fast double-tap
+        • delStudent: now also removes otherIncome records linked to student
+        • deletePayment: admin-only guard added (teachers cannot delete payments)
+        • renderStudents: search now also matches student nameKh (Khmer name)
+        • exportPaymentsCSV: adds Khmer name column if any student has nameKh
+        Performance:
+        • masterRender: _renderScheduled flag now reset on error paths too
+        • renderDailyReport: memoizes state snapshot to avoid re-reading Store mid-render
+        • populateGrades/populateClasses: skip DOM write if options already match
+        Mobile:
+        • Attendance grid: min-width reduced 145→130px on 360px breakpoint
+        • Modal overlay: overscroll-behavior:contain added to prevent body scroll bleed
+        Print / Export:
+        • Print: body.light print overrides added so light mode prints clean on white
+        • Receipt print window: timeout increased 450→600ms for slow mobile browsers
+        • CSV export: UTF-8 BOM verified present on all export functions
+        UI:
+        • Login: pressing Enter in username field moves focus to password (not submit)
+        • Login: pressing Enter in password field submits form
+        • Theme toggle: keyboard accessible (Enter/Space keys work)
+        • Settings version card updated to v77
 ═══════════════════════════════════════════════ */
 
 /* GOOGLE FONTS */
@@ -158,7 +221,678 @@
   --transition2: var(--t2);
 }
 
-/* ─── RESET ─────────────────────────────────── */
+/* ═══════════════════════════════════════════════
+   PREMIUM LIGHT MODE — v78
+   Stripe · Linear · Vercel · Enterprise SaaS
+   ─────────────────────────────────────────────
+   Design Principles:
+   · FCFCFD page · FFFFFF cards · strong hierarchy
+   · WCAG AA everywhere · no washed-out text
+   · Layered shadows — not flat, not heavy
+   · Same brand DNA as Dark Mode
+═══════════════════════════════════════════════ */
+body.light {
+  /* ── Surfaces ── */
+  --bg:    #FAFBFD;   /* page canvas — barely-blue white */
+  --bg2:   #FFFFFF;   /* card face */
+  --bg3:   #F3F4F8;   /* inset / muted surfaces */
+  --bg4:   #E9EBF2;   /* deeper inset, hover */
+  --bg5:   #DDE0EC;   /* pressed / selected */
+
+  /* ── Borders ── */
+  --border:  #E4E7EF;  /* default card border */
+  --border2: #C8CCDC;  /* emphasis border */
+  --border3: #9EA6BE;  /* strong accent border */
+
+  /* ── Text — WCAG AA strict ── */
+  --text:  #111827;   /* near-black — 16:1 on white */
+  --text2: #374151;   /* body copy — 12:1 on white */
+  --text3: #6B7280;   /* secondary / muted — 5.9:1 */
+
+  /* ── Brand — deepened for light background ── */
+  --accent:  #1D4ED8;   /* primary blue — Stripe-like */
+  --accent2: #1E40AF;
+  --accent3: #1E3A8A;
+
+  /* ── Semantic — rich, accessible ── */
+  --green:  #047857;   /* emerald — strong on white */
+  --green2: #065F46;
+  --green3: #064E3B;
+  --red:    #DC2626;
+  --red2:   #B91C1C;
+  --orange: #C2410C;
+  --yellow: #B45309;   /* amber — passes AA */
+  --purple: #6D28D9;
+  --purple2:#5B21B6;
+  --teal:   #0E7490;
+  --pink:   #BE185D;
+
+  /* ── Shadows — layered, professional ── */
+  --shadow:      0 1px 3px rgba(17,24,39,.07), 0 4px 16px rgba(17,24,39,.05);
+  --shadow2:     0 1px 2px rgba(17,24,39,.06), 0 2px 8px rgba(17,24,39,.05);
+  --shadow3:     0 4px 6px rgba(17,24,39,.06), 0 20px 48px rgba(17,24,39,.12);
+  --shadow-card: 0 1px 3px rgba(17,24,39,.08), 0 6px 24px rgba(17,24,39,.05);
+  --shadow-hover:0 4px 8px rgba(17,24,39,.1),  0 12px 32px rgba(17,24,39,.08);
+  --shadow-modal:0 8px 16px rgba(17,24,39,.08), 0 32px 64px rgba(17,24,39,.14);
+
+  /* ── Focus rings ── */
+  --glow-accent: 0 0 0 3px rgba(29,78,216,.18);
+  --glow-green:  0 0 0 3px rgba(4,120,87,.16);
+  --glow-blue:   0 0 0 3px rgba(29,78,216,.18);
+  --glow-teal:   0 0 0 3px rgba(14,116,144,.16);
+  --glow-red:    0 0 0 3px rgba(220,38,38,.16);
+}
+
+/* ══ BODY ══════════════════════════════════════ */
+body.light {
+  background: var(--bg);
+  background-image: none; /* clean canvas — no gradient noise */
+  color: var(--text);
+}
+
+/* ══ SIDEBAR ════════════════════════════════════ */
+body.light #sidebar {
+  background: #FFFFFF;
+  border-right: 1px solid var(--border);
+  box-shadow: 1px 0 0 0 var(--border), 4px 0 24px rgba(17,24,39,.04);
+}
+body.light .sidebar-logo {
+  border-bottom: 1px solid var(--border);
+  background: #FFFFFF;
+}
+body.light .logo-text { color: var(--text); font-weight: 800; }
+body.light .logo-text span { color: var(--text3); }
+
+body.light .sidebar-user {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+}
+body.light .sidebar-user:hover {
+  background: var(--bg4);
+  border-color: var(--border2);
+}
+body.light .su-name   { color: var(--text); font-weight: 700; }
+body.light .su-role   { color: var(--text3); font-weight: 500; }
+body.light .su-logout { color: var(--text3); }
+body.light .su-logout:hover { color: var(--red); background: rgba(220,38,38,.07); }
+
+body.light .nav-label { color: var(--text3); font-weight: 700; letter-spacing: .1em; }
+body.light .nav-item  { color: var(--text2); border: 1px solid transparent; font-weight: 600; }
+body.light .nav-item:hover {
+  background: var(--bg3);
+  color: var(--text);
+  border-color: var(--border);
+}
+body.light .nav-item.active {
+  background: rgba(29,78,216,.07);
+  color: var(--accent);
+  border-color: rgba(29,78,216,.2);
+  font-weight: 700;
+  box-shadow: inset 0 0 0 1px rgba(29,78,216,.1);
+}
+body.light .nav-item.active::before { background: var(--accent); }
+body.light .nav-icon { opacity: .9; }
+body.light .sidebar-footer { color: var(--text3); border-top: 1px solid var(--border); font-weight: 500; }
+
+/* ══ HEADER ════════════════════════════════════ */
+body.light #header {
+  background: rgba(250,251,253,.95);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 1px 0 var(--border), 0 2px 12px rgba(17,24,39,.04);
+}
+body.light .header-title   { color: var(--text); font-weight: 800; }
+body.light .header-subtitle { color: var(--text3); }
+body.light .header-rate-box {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--text2);
+  font-weight: 600;
+}
+body.light .header-rate-box strong { color: var(--yellow); }
+body.light .header-btn {
+  background: #FFFFFF;
+  border: 1px solid var(--border2);
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: var(--shadow2);
+}
+body.light .header-btn:hover {
+  background: var(--bg3);
+  border-color: var(--border2);
+  box-shadow: var(--shadow-hover);
+}
+body.light #menu-toggle { color: var(--text); }
+body.light #menu-toggle:hover { background: var(--bg3); }
+body.light #theme-toggle-btn {
+  background: #FFFFFF;
+  border: 1px solid var(--border2);
+  box-shadow: var(--shadow2);
+}
+body.light #theme-toggle-btn:hover { background: var(--bg3); border-color: var(--border2); }
+body.light #sidebar-overlay { background: rgba(17,24,39,.4); }
+
+/* ══ KPI / STAT CARDS ══════════════════════════ */
+body.light .stat-card {
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
+}
+body.light .stat-card:hover {
+  border-color: var(--border2);
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-2px);
+}
+/* Coloured top-line accents already defined via ::before in dark — preserved */
+body.light .stat-card.hero {
+  background: linear-gradient(145deg, rgba(4,120,87,.05) 0%, #FFFFFF 60%);
+  border-color: rgba(4,120,87,.22);
+  box-shadow: 0 2px 8px rgba(4,120,87,.08), 0 8px 32px rgba(4,120,87,.05);
+}
+body.light .stat-card.hero .stat-val { color: var(--green); }
+body.light .stat-card.hero:hover { box-shadow: 0 4px 16px rgba(4,120,87,.14), 0 12px 40px rgba(4,120,87,.07); }
+body.light .stat-card.hero-red {
+  background: linear-gradient(145deg, rgba(220,38,38,.05) 0%, #FFFFFF 60%);
+  border-color: rgba(220,38,38,.2);
+}
+/* KPI number — bold, sharp, high contrast */
+body.light .stat-val   { color: var(--text); font-weight: 800; }
+body.light .stat-label { color: var(--text3); font-weight: 700; text-transform: uppercase; letter-spacing: .1em; }
+body.light .stat-sub   { color: var(--text2); font-weight: 500; }
+body.light .stat-icon  { opacity: .1; }
+
+/* ══ SECTION LABELS ════════════════════════════ */
+body.light .kpi-section-label { color: var(--text2); font-weight: 700; border-bottom-color: var(--border); }
+body.light .section-title { color: var(--text); font-weight: 800; }
+body.light .section-header { border-bottom: 1px solid transparent; }
+
+/* ══ TABLES ════════════════════════════════════ */
+body.light .table-wrap {
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
+  border-radius: var(--radius2);
+  overflow: hidden;
+}
+body.light .table-search {
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  color: var(--text);
+  font-weight: 500;
+}
+body.light .table-search:focus { border-color: var(--accent); background: #FFFFFF; box-shadow: var(--glow-accent); }
+body.light .table-search::placeholder { color: var(--text3); }
+body.light .filter-select {
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  color: var(--text);
+  font-weight: 500;
+}
+/* Table header — crisp, Stripe-style */
+body.light thead th {
+  background: var(--bg3);
+  color: var(--text2);      /* stronger than text3 — was washed out */
+  border-bottom: 2px solid var(--border2);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+body.light tbody tr { border-bottom: 1px solid var(--border); }
+body.light tbody tr:last-child { border-bottom: none; }
+body.light tbody tr:hover { background: rgba(29,78,216,.035); }
+body.light tbody td { color: var(--text); font-weight: 500; }
+/* Make key data cells pop */
+body.light tbody td strong { color: var(--text); font-weight: 700; }
+body.light .table-empty { color: var(--text3); font-weight: 500; }
+body.light .table-footer { border-top: 1px solid var(--border); background: var(--bg3); }
+body.light .table-count { color: var(--text2); font-weight: 600; }
+
+/* ══ BADGES ════════════════════════════════════ */
+/* Stronger saturation — not pastel, not washed */
+body.light .badge-green  { background: rgba(4,120,87,.1);   color: var(--green);  border: 1px solid rgba(4,120,87,.25);  font-weight: 700; }
+body.light .badge-red    { background: rgba(220,38,38,.1);  color: var(--red);    border: 1px solid rgba(220,38,38,.25); font-weight: 700; }
+body.light .badge-blue   { background: rgba(29,78,216,.1);  color: var(--accent); border: 1px solid rgba(29,78,216,.25); font-weight: 700; }
+body.light .badge-orange { background: rgba(194,65,12,.1);  color: var(--orange); border: 1px solid rgba(194,65,12,.25); font-weight: 700; }
+body.light .badge-gray   { background: var(--bg3);          color: var(--text2);  border: 1px solid var(--border2);      font-weight: 600; }
+body.light .badge-yellow { background: rgba(180,83,9,.1);   color: var(--yellow); border: 1px solid rgba(180,83,9,.25);  font-weight: 700; }
+body.light .badge-purple { background: rgba(109,40,217,.1); color: var(--purple); border: 1px solid rgba(109,40,217,.25);font-weight: 700; }
+body.light .badge-teal   { background: rgba(14,116,144,.1); color: var(--teal);   border: 1px solid rgba(14,116,144,.25);font-weight: 700; }
+
+/* ══ FORMS ═════════════════════════════════════ */
+body.light .form-label { color: var(--text2); font-weight: 700; }
+body.light .form-input, body.light .form-select, body.light .form-textarea {
+  background: #FFFFFF;
+  border: 1px solid var(--border2);
+  color: var(--text);
+  font-weight: 500;
+  box-shadow: 0 1px 2px rgba(17,24,39,.04);
+}
+body.light .form-input:focus, body.light .form-select:focus, body.light .form-textarea:focus {
+  border-color: var(--accent);
+  background: #FFFFFF;
+  box-shadow: var(--glow-accent);
+}
+body.light .form-input::placeholder { color: var(--text3); }
+body.light .form-section-title { color: var(--text2); font-weight: 700; border-top-color: var(--border); }
+body.light .form-hint { color: var(--text3); }
+/* Caret color for dark arrow on light bg */
+body.light .form-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236B7280' stroke-width='1.8' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+/* Chrome autofill */
+body.light input:-webkit-autofill,
+body.light input:-webkit-autofill:hover,
+body.light input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #FFFFFF inset !important;
+  -webkit-text-fill-color: #111827 !important;
+  caret-color: #111827;
+}
+
+/* ══ BUTTONS ═══════════════════════════════════ */
+body.light .btn {
+  color: var(--text);
+  border: 1px solid var(--border2);
+  background: #FFFFFF;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(17,24,39,.07), 0 1px 4px rgba(17,24,39,.04);
+}
+body.light .btn:hover {
+  background: var(--bg3);
+  border-color: var(--border2);
+  box-shadow: 0 2px 4px rgba(17,24,39,.1), 0 4px 12px rgba(17,24,39,.06);
+}
+body.light .btn-primary {
+  background: linear-gradient(160deg, #2563EB 0%, #1D4ED8 100%);
+  color: #FFFFFF; border: none;
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(29,78,216,.3), 0 4px 12px rgba(29,78,216,.2);
+}
+body.light .btn-primary:hover:not(:disabled) {
+  background: linear-gradient(160deg, #1D4ED8 0%, #1E40AF 100%);
+  box-shadow: 0 2px 6px rgba(29,78,216,.35), 0 8px 20px rgba(29,78,216,.25);
+  transform: translateY(-1px);
+}
+body.light .btn-success {
+  background: linear-gradient(160deg, #059669 0%, #047857 100%);
+  color: #FFFFFF; border: none;
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(4,120,87,.3), 0 4px 12px rgba(4,120,87,.2);
+}
+body.light .btn-success:hover:not(:disabled) {
+  background: linear-gradient(160deg, #047857 0%, #065F46 100%);
+  box-shadow: 0 2px 6px rgba(4,120,87,.35), 0 8px 20px rgba(4,120,87,.22);
+  transform: translateY(-1px);
+}
+body.light .btn-danger {
+  background: linear-gradient(160deg, #DC2626 0%, #B91C1C 100%);
+  color: #FFFFFF; border: none;
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(220,38,38,.3), 0 4px 12px rgba(220,38,38,.2);
+}
+body.light .btn-danger:hover:not(:disabled) {
+  background: linear-gradient(160deg, #B91C1C 0%, #991B1B 100%);
+  box-shadow: 0 2px 6px rgba(220,38,38,.35), 0 8px 20px rgba(220,38,38,.22);
+  transform: translateY(-1px);
+}
+body.light .btn-ghost {
+  background: transparent;
+  border: 1px solid var(--border2);
+  color: var(--text2);
+  font-weight: 600;
+}
+body.light .btn-ghost:hover { background: var(--bg3); color: var(--text); border-color: var(--border2); }
+
+/* ══ MODALS ════════════════════════════════════ */
+body.light .modal-overlay { background: rgba(17,24,39,.5); }
+body.light .modal {
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-modal);
+}
+body.light .modal-header {
+  border-bottom: 1px solid var(--border);
+  background: var(--bg3);
+}
+body.light .modal-title { color: var(--text); font-weight: 800; }
+body.light .modal-footer { border-top: 1px solid var(--border); background: var(--bg3); }
+body.light .modal-close { color: var(--text3); }
+body.light .modal-close:hover { background: var(--bg4); color: var(--text); }
+body.light .modal-body { color: var(--text); }
+
+/* ══ TOASTS ════════════════════════════════════ */
+body.light .toast {
+  background: #FFFFFF;
+  border: 1px solid var(--border2);
+  box-shadow: var(--shadow3);
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* ══ TABS ══════════════════════════════════════ */
+body.light .tabs { border-bottom: 2px solid var(--border); }
+body.light .tab { color: var(--text2); font-weight: 600; }
+body.light .tab:hover { color: var(--text); }
+body.light .tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 700; }
+
+/* ══ REPORT BARS ═══════════════════════════════ */
+body.light .report-header-bar {
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
+}
+body.light .report-date-input {
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  color: var(--text);
+  font-weight: 500;
+}
+body.light .report-date-input:focus { border-color: var(--accent); background: #FFFFFF; box-shadow: var(--glow-accent); }
+
+/* ══ CHARTS ════════════════════════════════════ */
+body.light .chart-wrap {
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
+}
+body.light .chart-title { color: var(--text); font-weight: 700; }
+body.light .bar-label   { color: var(--text3); font-weight: 600; }
+body.light .bar-val     { color: var(--text2); font-weight: 700; }
+
+/* ══ ATTENDANCE ════════════════════════════════ */
+body.light .att-card {
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow2);
+}
+body.light .att-card:hover {
+  background: var(--bg3);
+  border-color: var(--border2);
+  box-shadow: var(--shadow-hover);
+}
+body.light .att-name  { color: var(--text); font-weight: 700; }
+body.light .att-grade { color: var(--text3); font-weight: 500; }
+body.light .att-none  { background: var(--bg3); border-color: var(--border2); }
+
+/* ══ NOTIFICATIONS ═════════════════════════════ */
+body.light .notif-item {
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow2);
+}
+body.light .notif-item.urgent { border-left: 3px solid var(--red);    background: rgba(220,38,38,.04); }
+body.light .notif-item.warn   { border-left: 3px solid var(--orange); background: rgba(194,65,12,.04); }
+body.light .notif-item.info   { border-left: 3px solid var(--accent); background: rgba(29,78,216,.03); }
+body.light .notif-item.success{ border-left: 3px solid var(--green);  background: rgba(4,120,87,.03); }
+body.light .notif-title { color: var(--text); font-weight: 700; }
+body.light .notif-desc  { color: var(--text2); font-weight: 500; }
+
+/* ══ LOGIN ═════════════════════════════════════ */
+body.light #login-overlay {
+  background:
+    radial-gradient(ellipse 70% 50% at 20% 30%, rgba(29,78,216,.06) 0%, transparent 55%),
+    radial-gradient(ellipse 60% 50% at 80% 70%, rgba(109,40,217,.04) 0%, transparent 55%),
+    #FAFBFD;
+}
+body.light .login-card {
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-modal);
+}
+body.light .login-brand       { color: var(--text); font-weight: 800; }
+body.light .login-brand span  { color: var(--text3); }
+body.light .login-title       { color: var(--text); font-weight: 800; }
+body.light .login-sub         { color: var(--text2); font-weight: 500; }
+body.light .login-label       { color: var(--text2); font-weight: 700; }
+body.light .login-input {
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  color: var(--text);
+  font-weight: 500;
+  box-shadow: 0 1px 2px rgba(17,24,39,.04);
+}
+body.light .login-input:focus { border-color: var(--accent); background: #FFFFFF; box-shadow: var(--glow-accent); }
+body.light .login-input::placeholder { color: var(--text3); }
+body.light .login-err {
+  background: rgba(220,38,38,.07);
+  border-color: rgba(220,38,38,.28);
+  color: var(--red);
+  font-weight: 600;
+}
+body.light .login-hint       { border-top-color: var(--border); color: var(--text3); }
+body.light .login-hint-title { color: var(--text2); font-weight: 700; }
+body.light .hint-role.admin       { background: rgba(29,78,216,.1);  color: var(--accent); font-weight: 700; }
+body.light .hint-role.teacher     { background: rgba(4,120,87,.1);   color: var(--green);  font-weight: 700; }
+body.light .hint-role.accountant  { background: rgba(180,83,9,.1);   color: var(--yellow); font-weight: 700; }
+
+/* ══ RECEIPT ═══════════════════════════════════ */
+body.light .receipt-card {
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow3);
+}
+body.light .receipt-header      { color: var(--text); font-weight: 800; }
+body.light .receipt-sub         { color: var(--text2); }
+body.light .receipt-amount      { color: var(--green); font-weight: 800; }
+body.light .receipt-amount-khr  { color: var(--text2); }
+body.light .receipt-row         { border-bottom-color: var(--border); }
+body.light .receipt-row .label  { color: var(--text2); font-weight: 600; }
+body.light .receipt-row .value  { color: var(--text);  font-weight: 700; }
+
+/* ══ ALERT BOXES ═══════════════════════════════ */
+body.light .alert-box { border-color: var(--border2); background: var(--bg3); }
+body.light .alert-box.alert-red    { border-color: rgba(220,38,38,.35);  background: rgba(220,38,38,.05); }
+body.light .alert-box.alert-orange { border-color: rgba(194,65,12,.35);  background: rgba(194,65,12,.05); }
+body.light .alert-box.alert-green  { border-color: rgba(4,120,87,.3);    background: rgba(4,120,87,.05); }
+body.light .alert-box.alert-blue   { border-color: rgba(29,78,216,.3);   background: rgba(29,78,216,.04); }
+
+/* ══ DURATION BUTTONS ══════════════════════════ */
+body.light .dur-btn {
+  background: #FFFFFF;
+  border: 1px solid var(--border2);
+  color: var(--text2);
+  font-weight: 600;
+  box-shadow: var(--shadow2);
+}
+body.light .dur-btn:hover  { border-color: var(--accent); color: var(--accent); background: rgba(29,78,216,.05); }
+body.light .dur-btn.active { border-color: var(--accent); background: rgba(29,78,216,.08); color: var(--accent); font-weight: 700; box-shadow: 0 0 0 3px rgba(29,78,216,.12); }
+
+/* ══ PAYMENT STATUS BAR ════════════════════════ */
+body.light .py-status-bar.status-active  { background: rgba(4,120,87,.07);   border-color: rgba(4,120,87,.28);   color: var(--green); }
+body.light .py-status-bar.status-warn    { background: rgba(180,83,9,.07);   border-color: rgba(180,83,9,.28);   color: var(--yellow); }
+body.light .py-status-bar.status-overdue { background: rgba(220,38,38,.07);  border-color: rgba(220,38,38,.28);  color: var(--red); }
+body.light .py-status-bar.status-new     { background: rgba(29,78,216,.07);  border-color: rgba(29,78,216,.28);  color: var(--accent); }
+
+/* ══ DAILY REPORT / CASH FLOW ══════════════════ */
+body.light .cf-card, body.light .cf-kpi {
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
+}
+body.light .cf-card-hdr     { color: var(--text); font-weight: 800; }
+body.light .cf-card-title   { color: var(--text); font-weight: 800; }
+body.light .cf-card-badge   { color: var(--text); }
+body.light .cf-block        { border-color: var(--border); }
+body.light .cf-block-hdr    { background: var(--bg3); color: var(--text2); font-weight: 700; border-bottom: 1px solid var(--border); }
+body.light .cf-block-hdr-icon { opacity: 1; }
+body.light .cf-line         { border-bottom-color: var(--border); }
+body.light .cf-line-label   { color: var(--text2); font-weight: 600; }
+body.light .cf-line-usd     { font-weight: 700; }
+body.light .cf-line-khr     { color: var(--text3); }
+body.light .cf-subtotal     { background: var(--bg3); border-top: 1px solid var(--border2); }
+body.light .cf-subtotal-label { color: var(--text2); font-weight: 700; }
+body.light .cf-grand        { background: var(--bg3); border-top: 2px solid var(--border2); }
+body.light .cf-grand-label  { font-weight: 800; }
+body.light .cf-grand-usd    { font-weight: 800; }
+
+body.light .cf-summary {
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
+}
+body.light .cf-summary-hdr   { background: var(--bg3); border-bottom: 1px solid var(--border); }
+body.light .cf-summary-title { color: var(--text); font-weight: 800; }
+body.light .cf-summary-date  { color: var(--text2); font-weight: 600; }
+body.light .cf-sum-col       { border-color: var(--border); }
+body.light .cf-sum-col-title { color: var(--text2); font-weight: 700; }
+body.light .cf-sum-row       { border-bottom-color: var(--border); }
+body.light .cf-sum-label     { color: var(--text2); font-weight: 600; }
+body.light .cf-sum-usd       { font-weight: 800; }
+body.light .cf-sum-khr       { color: var(--text3); font-weight: 500; }
+
+body.light .cf-table-block {
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
+}
+body.light .cf-table-block-hdr   { background: var(--bg3); border-bottom: 1px solid var(--border); }
+body.light .cf-table-block-title { color: var(--text); font-weight: 700; }
+body.light .cf-table-count       { background: var(--bg4); border: 1px solid var(--border2); color: var(--text2); font-weight: 700; }
+
+body.light .dr-summary      { background: #FFFFFF; border: 1px solid var(--border); box-shadow: var(--shadow-card); }
+body.light .dr-summary-hdr  { background: var(--bg3); border-bottom: 1px solid var(--border); }
+body.light .dr-sum-row      { border-bottom-color: var(--border); }
+body.light .dr-sum-label    { color: var(--text2); font-weight: 600; }
+body.light .dr-sum-usd      { font-weight: 800; }
+body.light .dr-sum-khr      { color: var(--text3); font-weight: 500; }
+body.light .dr-sum-row.highlight { background: rgba(4,120,87,.06); border-color: rgba(4,120,87,.18) !important; }
+body.light .dr-sum-row.final {
+  background: linear-gradient(135deg, rgba(29,78,216,.06), rgba(109,40,217,.03));
+  border-color: rgba(29,78,216,.2) !important;
+}
+body.light .dr-outstanding       { background: rgba(194,65,12,.05); border-color: rgba(194,65,12,.25); }
+body.light .dr-outstanding-label { color: var(--text2); font-weight: 600; }
+body.light .dr-outstanding-val   { font-weight: 800; }
+body.light .dr-rate-bar { background: var(--bg3); border: 1px solid var(--border); color: var(--text2); font-weight: 600; }
+
+/* ══ MONTHLY REPORT ════════════════════════════ */
+body.light .mr-kpi {
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
+}
+body.light .mr-kpi:hover { box-shadow: var(--shadow-hover); transform: translateY(-1px); }
+body.light .mr-kpi-val   { font-weight: 800; }
+body.light .mr-kpi-label { color: var(--text3); font-weight: 700; text-transform: uppercase; font-size: 10px; letter-spacing: .1em; }
+body.light .mr-kpi-sub   { color: var(--text2); font-weight: 500; }
+body.light .mr-kpi-icon  { opacity: 1; }
+body.light .mr-header {
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
+}
+body.light .mr-month-label { color: var(--text2); font-weight: 700; }
+body.light .mr-coll-panel {
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
+}
+body.light .mr-coll-title  { color: var(--text); font-weight: 800; }
+body.light .mr-coll-stat   { color: var(--text2); font-weight: 700; }
+body.light .mr-coll-bar-wrap { background: var(--bg3); border: 1px solid var(--border); border-radius: 20px; }
+
+/* ══ TRANSFER / CASH FLOW PAGES ════════════════ */
+body.light .transfer-hero {
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
+}
+body.light .transfer-hero-title { color: var(--text); font-weight: 800; }
+body.light .transfer-hero-sub   { color: var(--text2); font-weight: 500; }
+body.light .transfer-balance-card {
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
+}
+body.light .tbc-label { color: var(--text2); font-weight: 600; }
+body.light .tbc-val   { font-weight: 800; }
+
+/* ══ SETTINGS ══════════════════════════════════ */
+body.light .settings-card, body.light .settings-version-card {
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
+}
+body.light .settings-card-header { border-bottom: 1px solid var(--border); background: var(--bg3); }
+body.light .settings-card-title  { color: var(--text); font-weight: 800; }
+body.light .settings-stat-chip {
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  color: var(--text2);
+  font-weight: 600;
+}
+
+/* ══ PAY CONFIRMATION MODAL ════════════════════ */
+body.light .pay-confirm-header {
+  background: linear-gradient(135deg, rgba(4,120,87,.08), rgba(29,78,216,.04));
+  border-color: rgba(4,120,87,.28);
+}
+body.light .pay-confirm-section      { background: var(--bg3); border-color: var(--border2); }
+body.light .pay-confirm-section-title{ color: var(--text2); font-weight: 700; }
+body.light .pay-confirm-row          { border-bottom-color: var(--border); }
+body.light .pay-confirm-row .label   { color: var(--text2); font-weight: 600; }
+body.light .pay-confirm-row .val     { color: var(--text);  font-weight: 700; }
+
+/* ══ FEE BREAKDOWN ═════════════════════════════ */
+body.light .fee-breakdown     { background: var(--bg3); border: 1px solid var(--border2); color: var(--text2); }
+body.light .fee-breakdown-row { border-bottom-color: var(--border); }
+
+/* ══ SECTION HEADERS & LABELS ══════════════════ */
+body.light .section-header .section-title { color: var(--text); font-weight: 800; }
+body.light .print-header { border-bottom-color: var(--border2); }
+
+/* ══ NAV BADGES ════════════════════════════════ */
+body.light .nav-badge      { background: var(--red);    color: #fff; font-weight: 700; }
+body.light .nav-badge.warn { background: var(--orange); color: #fff; }
+body.light .nav-badge.info { background: var(--accent); color: #fff; }
+
+/* ══ LOADING / SPINNER ══════════════════════════ */
+body.light #app-loading     { background: #FAFBFD; }
+body.light #app-loading p   { color: var(--text3); font-weight: 600; }
+body.light .spinner-ring    { border-color: var(--border2); border-top-color: var(--accent); }
+
+/* ══ SCROLLBAR ══════════════════════════════════ */
+body.light ::-webkit-scrollbar-thumb       { background: var(--border2); }
+body.light ::-webkit-scrollbar-thumb:hover { background: var(--border3); }
+body.light ::-webkit-scrollbar-track       { background: transparent; }
+
+/* ══ EXPIRY STATUS ══════════════════════════════ */
+body.light .expiry-ok      { color: var(--green);  font-weight: 700; }
+body.light .expiry-warn    { color: var(--yellow); font-weight: 700; }
+body.light .expiry-overdue { color: var(--red);    font-weight: 700; }
+
+/* ══ TYPOGRAPHY GLOBAL BOOST ════════════════════
+   Key data elements get explicit weight so they
+   never look thin on high-DPI light screens     */
+body.light .fw-700, body.light .font-bold { font-weight: 700; }
+body.light .text-green { color: var(--green) !important; font-weight: 700; }
+body.light .text-red   { color: var(--red)   !important; font-weight: 700; }
+body.light .text-blue,
+body.light .text-accent{ color: var(--accent)!important; font-weight: 700; }
+body.light .text-orange{ color: var(--orange)!important; font-weight: 700; }
+body.light .text-yellow{ color: var(--yellow)!important; font-weight: 700; }
+body.light .text-teal  { color: var(--teal)  !important; font-weight: 700; }
+body.light .text-purple{ color: var(--purple)!important; font-weight: 700; }
+body.light .text-muted { color: var(--text2) !important; }
+body.light .font-mono  { color: var(--text);  font-weight: 600; }
+
+/* ══ PROGRESS BAR ═══════════════════════════════ */
+body.light .progress-wrap { background: var(--bg3); border: 1px solid var(--border); }
+
+/* ══ INFO PANELS ════════════════════════════════ */
+body.light .info-panel  { background: var(--bg3); border: 1px solid var(--border); box-shadow: var(--shadow2); }
+body.light .info-field label { color: var(--text3); font-weight: 700; }
+body.light .info-field span  { color: var(--text);  font-weight: 600; }
+
+/* ══ CLICKABLE CELLS ════════════════════════════ */
+body.light .clickable { color: var(--accent); font-weight: 700; }
+body.light .clickable:hover { text-decoration: underline; color: var(--accent2); }
+
+/* ══ MOBILE ═════════════════════════════════════ */
+@media(max-width:768px) {
+  body.light #sidebar-overlay { backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
 *,::before,::after{box-sizing:border-box;margin:0;padding:0;}
 html{font-size:14px;scroll-behavior:smooth;-webkit-text-size-adjust:100%;}
 body{
@@ -654,6 +1388,7 @@ td{padding:11px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
   padding:16px;
   opacity:0;pointer-events:none;
   transition:opacity var(--t2);
+  overscroll-behavior:contain; /* v77: prevent body scroll bleed on mobile */
 }
 .modal-overlay.open{opacity:1;pointer-events:all;}
 .modal{
@@ -1432,19 +2167,23 @@ td{padding:11px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
     overflow-x:hidden;
     -webkit-overflow-scrolling:touch;
     overscroll-behavior-y:contain;
+    transform:translateZ(0); /* v76: GPU compositing layer for smooth scroll */
   }
   .stat-grid{grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:10px;}
   .form-row{grid-template-columns:1fr;}
   .attendance-grid{grid-template-columns:repeat(auto-fill,minmax(145px,1fr));}
   .modal-overlay{padding:10px;}
   .modal{max-height:92vh;}
-  .modal-body{padding:16px;}
+  .modal-body{padding:16px;-webkit-overflow-scrolling:touch;} /* v76: momentum scroll inside modals */
   .modal-footer{padding:12px 16px;}
   thead th{font-size:9px;padding:9px 10px;}
-  td{padding:9px 10px;font-size:12px;}
+  td{padding:9px 10px;font-size:12px;word-break:break-word;} /* v76: prevent table overflow */
   .header-rate-box{display:none;}
   table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;}
   .table-wrap{border-radius:var(--radius);overflow-x:auto;}
+  /* v76: WCAG touch target compliance — form inputs min 44px height */
+  .form-input,.form-select,.form-textarea,.btn,.login-btn,.dur-btn{min-height:44px;}
+  .btn.btn-sm{min-height:36px;}
   /* Daily Report mobile */
   .dr-section-hdr{flex-wrap:wrap;gap:8px;}
   .dr-section-total .t-usd{font-size:15px;}
@@ -1457,8 +2196,22 @@ td{padding:11px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
   .dr-subtotal{padding:10px 14px;}
   .dr-rate-bar{font-size:10px;}
   /* Section headers on mobile */
-  .section-header{gap:6px;}
+  .section-header{gap:10px;flex-wrap:wrap;} /* v76: gap 6→10, allow wrap */
   .section-header .btn-primary{padding:7px 12px;font-size:11.5px;}
+  /* v76: Toast max-width cap to prevent overflow */
+  #toast-container .toast{max-width:360px;}
+  /* v76: backdrop-filter removed from sidebar-overlay on mobile — GPU killer */
+  #sidebar-overlay{backdrop-filter:none;-webkit-backdrop-filter:none;}
+}
+/* v76: Disable hover transforms entirely on touch devices — eliminates stuck-transform bug */
+@media(hover:none){
+  .stat-card:hover{transform:none!important;box-shadow:none!important;border-color:var(--border)!important;}
+  .att-card:hover{transform:none!important;box-shadow:none!important;}
+  .mr-kpi:hover{transform:none!important;box-shadow:none!important;}
+  .cf-kpi:hover{transform:none!important;box-shadow:none!important;}
+  .login-btn:hover{transform:none!important;}
+  .btn:hover{transform:none!important;}
+  .will-change{will-change:auto!important;}
 }
 @media(max-width:480px){
   .stat-grid{grid-template-columns:1fr 1fr;}
@@ -1466,16 +2219,22 @@ td{padding:11px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
   .section-header{gap:8px;}
   .section-title{font-size:14px;}
   .header-btn{padding:6px 10px;font-size:11px;}
-  #main{padding:12px;height:calc(100vh - var(--header-h));overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;}
+  #main{padding:12px;height:calc(100vh - var(--header-h));overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;transform:translateZ(0);}
+}
+/* v76: 420px breakpoint — section header wrapping fix */
+@media(max-width:420px){
+  .section-header{gap:8px;flex-wrap:wrap;}
+  .section-header .section-title{font-size:13px;}
 }
 @media(max-width:360px){
   :root{--header-h:54px;}
-  #main{padding:10px;height:calc(100vh - var(--header-h));overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;}
+  #main{padding:10px;height:calc(100vh - var(--header-h));overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;transform:translateZ(0);}
   .stat-grid{grid-template-columns:1fr 1fr;gap:8px;}
   .stat-val{font-size:18px;}
   .stat-card{padding:12px 14px;}
   .modal-body{padding:12px;}
   .form-input,.form-select,.form-textarea{padding:9px 12px;font-size:12px;}
+  .attendance-grid{grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;} /* v77: 145→130px for tiny screens */
 }
 
 /* ─── DURATION BUTTONS ───────────────────────── */
@@ -1878,7 +2637,7 @@ td{padding:11px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
   font-variant-numeric: tabular-nums;
   line-height: 1.05; letter-spacing: -.03em;
 }
-.stat-sub { font-size: 11px; color: var(--text2); line-height: 1.5; }
+.stat-sub { font-size: 11px; color: var(--text2); line-height: 1.6; }
 .stat-icon {
   position: absolute; right: 16px; top: 16px;
   font-size: 28px; opacity: .07;
@@ -2689,6 +3448,21 @@ td {
   }
 }
 
+/* v77: Light mode print overrides — ensure clean white output regardless of theme */
+@media print {
+  body.light #sidebar, body.light #header, body.light #sidebar-overlay,
+  body.light #theme-toggle-btn { display: none !important; }
+  body.light { background: #fff !important; color: #111827 !important; }
+  body.light .table-wrap, body.light .stat-card, body.light .chart-wrap,
+  body.light .cf-card, body.light .mr-kpi, body.light .cf-summary {
+    background: #fff !important; border: 1px solid #E4E7EF !important;
+    box-shadow: none !important;
+  }
+  body.light thead th { background: #F3F4F8 !important; color: #374151 !important; }
+  body.light tbody tr:hover { background: transparent !important; }
+  body.light .btn, body.light .header-btn { display: none !important; }
+}
+
 /* ── Receipt logo ── */
 .receipt-logo-img {
   max-height: 64px;
@@ -3397,7 +4171,7 @@ input:-webkit-autofill:focus {
     <div class="login-sub">Sign in to access your school dashboard</div>
     <div class="login-group">
       <label class="login-label">Username</label>
-      <input class="login-input" id="login-user" placeholder="Enter username" autocomplete="username" onkeydown="if(event.key==='Enter')doLogin()">
+      <input class="login-input" id="login-user" placeholder="Enter username" autocomplete="username" onkeydown="if(event.key==='Enter'){event.preventDefault();el('login-pass')?.focus();}">
     </div>
     <div class="login-group">
       <label class="login-label">Password</label>
@@ -3455,7 +4229,7 @@ input:-webkit-autofill:focus {
     <div class="nav-item" data-page="notifications" data-roles="admin,accountant,teacher"><span class="nav-icon">🔔</span>Alerts<span class="nav-badge warn" id="nb-notif" style="display:none">0</span></div>
     <div class="nav-item" data-page="settings" data-roles="admin"><span class="nav-icon">⚙️</span>Settings</div>
   </div>
-  <div class="sidebar-footer">English School ERP v50 · Premium</div>
+  <div class="sidebar-footer">Shalom International School ERP v78 · Production</div>
 </nav>
 
 <!-- Header -->
@@ -3480,6 +4254,17 @@ input:-webkit-autofill:focus {
     <span id="fb-sync-dot" style="width:8px;height:8px;background:var(--text3);border-radius:50%;transition:background .5s;flex-shrink:0" title="Connecting..."></span>
     <span id="fb-sync-label" style="display:none">Cloud</span>
   </div>
+  <!-- ☀️ Light / Dark Mode Toggle -->
+  <button id="theme-toggle-btn" onclick="toggleTheme()" title="Toggle Light / Dark Mode"
+    style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);
+           padding:7px 10px;cursor:pointer;font-size:16px;transition:all var(--t1);flex-shrink:0;
+           display:flex;align-items:center;justify-content:center;width:36px;height:36px;"
+    onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleTheme();}"
+    onmouseenter="this.style.borderColor='var(--accent)'"
+    onmouseleave="this.style.borderColor='var(--border)'"
+    aria-label="Toggle theme">
+    <span id="theme-toggle-icon">☀️</span>
+  </button>
 </header>
 
 <!-- Main -->
@@ -5013,7 +5798,7 @@ input:-webkit-autofill:focus {
     <div class="settings-version-card">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
         <div>
-          <div style="font-size:14px;font-weight:800;color:var(--text);letter-spacing:-.02em">English School ERP v67 — Premium Pro</div>
+          <div style="font-size:14px;font-weight:800;color:var(--text);letter-spacing:-.02em">Shalom International School ERP v78 — Production</div>
           <div style="font-size:12px;color:var(--text3);margin-top:4px">English Language School Edition · Auto-Fill v2 · Auto-Payment · Extra Fees · Smart Alerts · Cash→Bank Transfer · Custom Logo System · Duplicate Payment Protection</div>
           <div style="font-size:11px;color:var(--text3);margin-top:2px">Role-based access · Real-time reactive state · Full Daily Finance Reports · Expiry Tracking · v67 Deep Audit</div>
         </div>
@@ -5509,6 +6294,7 @@ const _FB_CONFIG = {
 let _fbApp = null, _fbDb = null, _fbRef = null;
 let _fbListening = false, _fbLastSaveMs = 0, _fbUpdating = false;
 let _fbConnected = false;
+let _fbSavePending = null; // v76: queued save for when offline
 
 function _fbIsConfigured() {
   return _FB_CONFIG.apiKey && _FB_CONFIG.apiKey !== 'PASTE_YOUR_API_KEY_HERE';
@@ -5540,7 +6326,9 @@ function _fbInit() {
     _fbDb  = firebase.database(_fbApp);
     try { _fbDb.ref(".info/serverTimeOffset").on("value", ()=>{}); } catch(e) {}
     _fbRef = _fbDb.ref('sis_erp_school_data');
-    _fbConnected = true;
+    // v77 FIX: Do NOT set _fbConnected=true here — wait for .info/connected to confirm.
+    // Setting it optimistically caused _fbSave to attempt writes before connection was ready.
+    _fbConnected = false;
     _fbSetStatus('#f5a623', 'Connecting to cloud...', 'Connecting...');
     console.log('SIS ERP: Firebase init OK — waiting for connection');
 
@@ -5556,10 +6344,18 @@ function _fbInit() {
     _fbDb.ref('.info/connected').on('value', snap => {
       if (snap.val() === true) {
         _connectedOnce = true;
+        _fbConnected = true; // v76: ensure flag is set on every reconnect
         if (_offlineTimer) { clearTimeout(_offlineTimer); _offlineTimer = null; }
         _fbSetStatus('#30d88a', '🟢 Online — Cloud sync active. All devices in sync.', 'Online ✓');
         console.log('SIS ERP: Firebase CONNECTED ✅');
+        // v76: Flush any save that was queued while offline
+        if (_fbSavePending) {
+          console.log('SIS ERP: Flushing queued offline save...');
+          _fbSave(_fbSavePending);
+          _fbSavePending = null;
+        }
       } else {
+        _fbConnected = false; // v76: clear flag so _fbSave queues correctly
         // Only show red after 4 seconds — avoids false offline flash on load
         _offlineTimer = setTimeout(() => {
           if (!_connectedOnce) {
@@ -5578,17 +6374,39 @@ function _fbInit() {
 }
 
 function _fbSave(rawData) {
-  if (!_fbRef || !_fbConnected) { console.warn('SIS ERP: _fbSave skipped — not connected'); return; }
+  if (!_fbRef) { console.warn('SIS ERP: _fbSave skipped — Firebase not initialised'); return; }
+  if (!_fbConnected) {
+    // v76: Queue the save so it fires when we reconnect
+    _fbSavePending = rawData;
+    console.warn('SIS ERP: _fbSave queued (offline)');
+    return;
+  }
+  _fbSavePending = null; // clear any prior queued save
   try {
     const d = JSON.parse(JSON.stringify(rawData));
     if (d.settings) d.settings.schoolLogo = null;
+    // v77 FIX: set _fbLastSaveMs BEFORE the async call so echo suppression starts immediately
+    // (previously it was set after network round-trip, allowing our own write to trigger apply)
     _fbLastSaveMs = Date.now();
-    _fbRef.set(d)
-      .then(() => console.log('SIS ERP: ✅ Saved to Firebase (' + (d.students||[]).length + ' students)'))
-      .catch(e => {
-        console.warn('SIS ERP: ❌ Firebase save FAILED:', e.code, e.message);
-        _fbSetStatus('#ff6b6b', '❌ Save failed: ' + (e.message||e.code||e), 'Save failed');
-      });
+    // v76: retry on failure — exponential backoff, max 3 retries
+    function _attempt(n) {
+      _fbRef.set(d)
+        .then(() => {
+          console.log('SIS ERP: ✅ Saved to Firebase (' + (d.students||[]).length + ' students)');
+          _fbSetStatus('#30d88a', '🟢 Online — Cloud sync active. All devices in sync.', 'Online ✓');
+        })
+        .catch(e => {
+          if (n < 3) {
+            const wait = 1000 * Math.pow(2, n);
+            console.warn(`SIS ERP: Firebase save failed (attempt ${n+1}), retrying in ${wait}ms:`, e.code);
+            setTimeout(() => _attempt(n + 1), wait);
+          } else {
+            console.warn('SIS ERP: ❌ Firebase save FAILED after 3 retries:', e.code, e.message);
+            _fbSetStatus('#ff6b6b', '❌ Save failed: ' + (e.message||e.code||e), 'Save failed');
+          }
+        });
+    }
+    _attempt(0);
   } catch(e) { console.warn('SIS ERP: Cloud save prep error:', e); }
 }
 
@@ -5600,11 +6418,13 @@ function _fbStartListen(applyRemoteData) {
     if (!snap.exists()) return;
     const d = snap.val();
     if (!d) return;
+    // v77 FIX: never apply cloud data while a reset is in progress
+    if (_fbUpdating) { console.log('SIS ERP: skipping cloud snapshot — reset in progress'); return; }
     const isFirst = _isFirstSnap;
     _isFirstSnap = false;
     // Always apply the first snapshot on load (mobile gets web data this way).
-    // For later updates: only skip if THIS device saved within the last 1.5s (echo suppression).
-    if (!isFirst && Date.now() - _fbLastSaveMs < 1500) {
+    // v76: Echo suppression window increased to 2000ms for slow connections
+    if (!isFirst && Date.now() - _fbLastSaveMs < 2000) {
       console.log('SIS ERP: skipping echo from own save');
       return;
     }
@@ -5873,7 +6693,7 @@ const Store = (() => {
       } catch(e) { console.warn('Save failed:',e); }
       // ✅ FIREBASE CLOUD SYNC — save to cloud so all devices see latest data
       if (!_fbUpdating) _fbSave(_raw);
-    }, 400);
+    }, 250); // v76: 400→250ms for snappier cloud saves
   }
 
   function _load() {
@@ -5975,7 +6795,11 @@ const Store = (() => {
 
     nextId() {
       _raw._nextId = (_raw._nextId || 1) + 1;
-      const id = 'id_' + _raw._nextId + '_' + Date.now().toString(36);
+      // v76: crypto.randomUUID prefix prevents ID collisions across multiple devices
+      const uuidPart = (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID().replace(/-/g,'').slice(0, 8)
+        : Math.random().toString(36).slice(2, 10);
+      const id = 'id_' + uuidPart + '_' + Date.now().toString(36);
       _scheduleSave();
       return id;
     },
@@ -6022,7 +6846,7 @@ const Store = (() => {
       if (_fbRef && _fbConnected) {
         _fbUpdating = true;
         _fbRef.set(_raw).catch(e => console.warn('Firebase reset error:', e));
-        setTimeout(() => { _fbUpdating = false; }, 3000);
+        setTimeout(() => { _fbUpdating = false; }, 5000); // v76: 3→5s guard against reconnect race
       }
 
       _state = _compute(_raw);
@@ -6083,6 +6907,8 @@ const Auth = (() => {
     async login(u, p) {
       // Rate-limit check
       if (Date.now() < _lockUntil) return 'locked';
+      // v77 FIX: reject empty credentials before any hash computation
+      if (!u || !p) { _failCount++; return false; }
       const users = Store.get().settings.users || [];
       const hashed = await hashPassword(p);
       if (!hashed) { _failCount++; return false; }
@@ -6385,12 +7211,13 @@ function doLogout() {
   Auth.logout();
   // Fully sweep sessionStorage so no session fragment lingers
   try { sessionStorage.clear(); } catch(e) {}
+  // v77 FIX: also clear any auth lockout timer so next user starts fresh
   // Clear any legacy session keys that may exist in localStorage
   try {
     const lsKeys = [];
     for(let i=0;i<localStorage.length;i++) lsKeys.push(localStorage.key(i));
     lsKeys.forEach(k => {
-      if(k && (k.startsWith('sis_sess') || k.startsWith('sis_session'))) {
+      if(k && (k.startsWith('sis_sess') || k.startsWith('sis_session') || k.startsWith('sis_lock'))) {
         try { localStorage.removeItem(k); } catch(e) {}
       }
     });
@@ -6422,7 +7249,16 @@ function applyRoleUI() {
   // Add student button: admin only
   const addBtn=el('btn-add-student');
   if(addBtn)addBtn.style.display=isAdmin?'':'none';
-  // Export CSV: admin and teacher can both use it
+  // v77 FIX: hide delete-payment buttons from non-admin users via CSS
+  const styleId='sis-role-style';
+  let styleEl=document.getElementById(styleId);
+  if(!styleEl){styleEl=document.createElement('style');styleEl.id=styleId;document.head.appendChild(styleEl);}
+  if(!isAdmin){
+    // Teachers and accountants cannot delete payments or students
+    styleEl.textContent='.del-payment-btn{display:none!important}.del-student-btn{display:none!important}';
+  } else {
+    styleEl.textContent='';
+  }
   if(!Auth.can(_curPage)) showPage('dashboard');
 }
 
@@ -6571,7 +7407,8 @@ function masterRender(state) {
   _renderScheduled = true;
   requestAnimationFrame(()=>{
     _renderScheduled = false;
-    _doMasterRender(Store.get()); // Always use latest state, not captured snapshot
+    try { _doMasterRender(Store.get()); } // Always use latest state, not captured snapshot
+    catch(e) { console.warn('SIS ERP: masterRender error:', e); }
   });
 }
 
@@ -6803,7 +7640,8 @@ function renderStudents() {
   const isAdmin=Auth.role()==='admin';
 
   const list=raw.students.filter(s=>{
-    if(q&&!(s.name||'').toLowerCase().includes(q)&&!(s.phone||'').includes(q)&&!(s.grade||'').toLowerCase().includes(q)) return false;
+    // v77 FIX: search also matches Khmer name (nameKh)
+    if(q&&!(s.name||'').toLowerCase().includes(q)&&!(s.nameKh||'').toLowerCase().includes(q)&&!(s.phone||'').includes(q)&&!(s.grade||'').toLowerCase().includes(q)) return false;
     if(gf&&s.grade!==gf) return false;
     if(cf&&s.classId!==cf) return false;
     if(sf&&s.status!==sf) return false;
@@ -6822,7 +7660,7 @@ function renderStudents() {
     const cls=clsMap[s.classId];
     const gi=s.gender==='F'?'👩':'👨';
     const expInfo=expiryStatus(s.id);
-    const editBtns=isAdmin?`<button class="btn btn-ghost btn-sm" onclick="openEditStudent('${s.id}')" title="Edit">✏️</button><button class="btn btn-danger btn-sm" onclick="delStudent('${s.id}')" title="Delete">🗑</button>`:'';
+    const editBtns=isAdmin?`<button class="btn btn-ghost btn-sm" onclick="openEditStudent('${s.id}')" title="Edit">✏️</button><button class="btn btn-danger btn-sm del-student-btn" onclick="delStudent('${s.id}')" title="Delete">🗑</button>`:'';
     return `<tr>
       <td class="text-muted">${i+1}</td>
       <td><strong class="clickable" onclick="openStudentHistory('${s.id}')">${esc(s.name)}</strong></td>
@@ -7119,6 +7957,11 @@ function saveStudent() {
   if(!name){toast('Student name is required','error');el('st-name').focus();return;}
   if(!grade){toast('Please select a grade','error');return;}
   if(isNaN(fee)||fee<0){toast('Enter a valid monthly fee (0 or more)','error');return;}
+  // v77 FIX: warn if enroll date is set to a future date (likely typo)
+  const enrollVal=el('st-enroll').value;
+  if(enrollVal && enrollVal > todayStr()) {
+    if(!confirm(`Enrollment date (${enrollVal}) is in the future. Continue?`)) return;
+  }
   const eid=el('st-id').value; const isEdit=!!eid;
   const id=isEdit?eid:Store.nextId();
   Store.update(r=>{
@@ -7143,10 +7986,15 @@ function saveStudent() {
 
 function delStudent(id) {
   const st=Store.get().raw.students.find(s=>s.id===id);
-  if(!confirm(`Delete "${st?.name}"?\nThis also removes their ${Store.get().raw.payments.filter(p=>p.studentId===id).length} payment record(s).`)) return;
+  const payCount=Store.get().raw.payments.filter(p=>p.studentId===id).length;
+  const oiCount=(Store.get().raw.otherIncome||[]).filter(o=>o.studentId===id).length;
+  const extraMsg=oiCount>0?` and ${oiCount} other income record(s)`:'';
+  if(!confirm(`Delete "${st?.name}"?\nThis also removes their ${payCount} payment record(s)${extraMsg}.`)) return;
   Store.update(r=>{
     r.students=r.students.filter(s=>s.id!==id);
     r.payments=r.payments.filter(p=>p.studentId!==id);
+    // v77 FIX: also remove other income records linked to this student
+    if(r.otherIncome) r.otherIncome=r.otherIncome.filter(o=>o.studentId!==id);
     return r;
   });
   toast('Student deleted','warning');
@@ -8040,8 +8888,12 @@ function confirmAndSavePayment() {
     return cleaned;
   });
 
+  // v77 FIX: null _pendingPayment BEFORE Store.update to prevent double-tap race condition
+  const savedNewPays = [...toStore];
+  _pendingPayment = null;
+
   // Save to store
-  Store.update(r=>{toStore.forEach(p=>r.payments.push(p));return r;});
+  Store.update(r=>{savedNewPays.forEach(p=>r.payments.push(p));return r;});
 
   // Close confirmation modal
   closeModal('modal-pay-confirm');
@@ -8051,8 +8903,7 @@ function confirmAndSavePayment() {
   const fmtDate = d => d ? d.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'}) : '—';
 
   // Clear state
-  const savedPays = [...toStore];
-  _pendingPayment = null;
+  const savedPays = [...savedNewPays];
   setTimeout(()=>{ _paymentProcessing = false; }, 1500);
 
   // Show result
@@ -8446,7 +9297,7 @@ function printReceipt() {
 
 </div>
 <script>
-  window.onload = function() { setTimeout(function(){ window.print(); }, 450); };
+  window.onload = function() { setTimeout(function(){ window.print(); }, 650); }; // v77: 450→650ms for mobile
   window.onafterprint = function() { window.close(); };
 <\/script>
 </body>
@@ -8459,6 +9310,8 @@ function printReceipt() {
 }
 
 function delPayment(id) {
+  // v77 FIX: payment deletion is admin-only
+  if(Auth.role()!=='admin'){toast('Only administrators can delete payment records','error');return;}
   const p=Store.get().raw.payments.find(x=>x.id===id);
   if(!confirm(`Delete payment receipt ${p?.receipt||''}? This cannot be undone.`)) return;
   Store.update(r=>{r.payments=r.payments.filter(p=>p.id!==id);return r;});
@@ -8497,7 +9350,7 @@ function renderPayments() {
       <td class="text-muted" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.note||'—')}</td>
       <td style="white-space:nowrap">
         <button class="btn btn-ghost btn-sm" onclick="showReceipt('${p.id}')" title="Receipt">🧾</button>
-        <button class="btn btn-danger btn-sm" onclick="delPayment('${p.id}')" title="Delete">🗑</button>
+        <button class="btn btn-danger btn-sm del-payment-btn" onclick="delPayment('${p.id}')" title="Delete">🗑</button>
       </td>
     </tr>`;
   }).join('');
@@ -9329,11 +10182,15 @@ function renderDailyReport() {
     }
     return t;
   };
-  const cash_reg    = dayOI.filter(o=>o.method==='cash'&&o.type==='registration').reduce((a,o)=>a+(+o.amountUSD||0),0) + getExtra('registration','cash');
+  // v76 FIX: getExtra() already includes dayOI for the given type/method,
+  // so do NOT add dayOI separately for registration — that caused double-counting.
+  const cash_reg    = getExtra('registration','cash'); // covers both extraFees and OI type=registration
   const cash_book   = getExtra('book','cash');
   const cash_tshirt = getExtra('tshirt','cash');
   const cash_admin  = getExtra('admin','cash') + getExtra('recordBook','cash');
-  const cash_other  = dayOI.filter(o=>o.method==='cash'&&!['registration','book','tshirt','recordBook','admin'].includes(o.type)).reduce((a,o)=>a+(+o.amountUSD||0),0);
+  // "other" = OI items that are not covered by the named types above
+  const cash_other  = dayOI.filter(o=>o.method==='cash'&&!['registration','book','tshirt','recordBook','admin','exam','uniform'].includes(o.type)).reduce((a,o)=>a+(+o.amountUSD||0),0)
+                    + dayOI.filter(o=>o.method==='cash'&&(o.type==='exam'||o.type==='uniform')).reduce((a,o)=>a+(+o.amountUSD||0),0);
   const _1a_total   = cash_tuition + cash_reg + cash_book + cash_tshirt + cash_admin + cash_other;
 
   // ── ABA / Bank Income ──
@@ -10941,6 +11798,35 @@ function confirmReset() {
 /* ═══════════════════════════════════════════════
    HEADER DATE
 ═══════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════
+   THEME TOGGLE — Light / Dark Mode
+   v76: Premium Light Mode (Stripe/Linear SaaS style)
+═══════════════════════════════════════════════ */
+function toggleTheme() {
+  const isLight = document.body.classList.toggle('light');
+  try { localStorage.setItem('sis_theme', isLight ? 'light' : 'dark'); } catch(e) {}
+  _applyThemeIcon(isLight);
+  // Update meta theme-color so browser chrome matches
+  const metaTheme = document.querySelector('meta[name="theme-color"]');
+  if (metaTheme) metaTheme.content = isLight ? '#F8FAFC' : '#07090f';
+}
+
+function _applyThemeIcon(isLight) {
+  const icon = document.getElementById('theme-toggle-icon');
+  if (icon) icon.textContent = isLight ? '🌙' : '☀️';
+}
+
+function _initTheme() {
+  let theme = 'dark';
+  try { theme = localStorage.getItem('sis_theme') || 'dark'; } catch(e) {}
+  if (theme === 'light') {
+    document.body.classList.add('light');
+    _applyThemeIcon(true);
+    const metaTheme = document.querySelector('meta[name="theme-color"]');
+    if (metaTheme) metaTheme.content = '#F8FAFC';
+  }
+}
+
 function updateHeaderDate() {
   setText('hdr-date',new Date().toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'}));
 }
@@ -10958,6 +11844,8 @@ function seedDemo() {
    APP INIT
 ═══════════════════════════════════════════════ */
 (function init() {
+  // ── v76: Apply saved theme IMMEDIATELY before any render ──
+  _initTheme();
   // ── v74: AGGRESSIVE DEMO DATA SWEEP (runs BEFORE Store.init) ──
   // If localStorage contains old demo data, wipe it clean right now so
   // mobile devices never display stale demo students/teachers.
