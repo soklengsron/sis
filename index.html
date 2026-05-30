@@ -13,8 +13,8 @@
 <title>Shalom International School ERP v78 — Production</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <!-- ✅ FIREBASE SDK — Online Cloud Storage -->
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
 <style>
 /* ═══════════════════════════════════════════════
    ENGLISH SCHOOL ERP v68 — PRODUCTION RELEASE
@@ -6282,7 +6282,7 @@ input:-webkit-autofill:focus {
 const _FB_CONFIG = {
   apiKey:            "AIzaSyCN1oJ0niwkccexqIjOBuldtvj1AoMFmLY",
   authDomain:        "shalominternationalschool-f5a33.firebaseapp.com",
-  databaseURL:       "https://shalominternationalschool-f5a33-default-rtdb.firebaseio.com/",
+  databaseURL:       "https://shalominternationalschool-f5a33-default-rtdb.firebaseio.com",
   projectId:         "shalominternationalschool-f5a33",
   storageBucket:     "shalominternationalschool-f5a33.firebasestorage.app",
   messagingSenderId: "1063602855362",
@@ -6320,9 +6320,9 @@ function _fbInit() {
   }
   try {
     // Force correct databaseURL
-    const _SAFE_CONFIG = Object.assign({}, _FB_CONFIG, {databaseURL:"https://shalominternationalschool-f5a33-default-rtdb.firebaseio.com/", experimentalForceLongPolling:true, experimentalAutoDetectLongPolling:true});
-    firebase.database.enableLogging(false);
-    _fbApp = firebase.initializeApp(_SAFE_CONFIG);
+    const _SAFE_CONFIG = Object.assign({}, _FB_CONFIG, {databaseURL:"https://shalominternationalschool-f5a33-default-rtdb.firebaseio.com"});
+    firebase.database.enableLogging(true);
+    _fbApp = firebase.apps.length ? firebase.app() : firebase.initializeApp(_SAFE_CONFIG);
     _fbDb  = firebase.database(_fbApp);
     try { _fbDb.ref(".info/serverTimeOffset").on("value", ()=>{}); } catch(e) {}
     _fbRef = _fbDb.ref('sis_erp_school_data');
